@@ -8,7 +8,7 @@ This application also provides information on optimal dates for observing a part
 the application enables users to create detailed logs documenting any observation of a particular target.
 This is a free, open source program.
 ---------------------------------------------------------------------------------------------------------------------------------------------
-Verison: 1.0
-Github Link: https: github.com/baris-guler/ObservaPy
-Author: Barış Güler
-My mail: barisguler2000@gmail.com
+Verison: 1.0 <br>
+Github Link: https: github.com/baris-guler/ObservaPy <br>
+Author: Barış Güler <br>
+My mail: barisguler2000@gmail.com <br>
