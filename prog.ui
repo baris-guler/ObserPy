@@ -355,17 +355,7 @@
            </sizepolicy>
           </property>
           <property name="text">
-           <string>Min Start Period</string>
-          </property>
-          <property name="alignment">
-           <set>Qt::AlignCenter</set>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLabel" name="label_3">
-          <property name="text">
-           <string>Min End Period</string>
+           <string>Minimum Time - Minimum Start Time (minutes)</string>
           </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
@@ -418,20 +408,7 @@
            </sizepolicy>
           </property>
           <property name="text">
-           <string>0.9</string>
-          </property>
-          <property name="alignment">
-           <set>Qt::AlignCenter</set>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="min_end_period_input">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
+           <string>60</string>
           </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
@@ -551,6 +528,7 @@
     </property>
     <addaction name="action_load_stars"/>
     <addaction name="action_load_observatories"/>
+    <addaction name="action_about"/>
    </widget>
    <addaction name="menuMenu"/>
   </widget>
@@ -572,6 +550,11 @@
   <action name="action_load_observatories">
    <property name="text">
     <string>Load Observatories</string>
+   </property>
+  </action>
+  <action name="action_about">
+   <property name="text">
+    <string>About</string>
    </property>
   </action>
  </widget>

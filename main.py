@@ -5,7 +5,7 @@ import numpy as np
 import pandas
 import re
 from PyQt5 import QtWidgets, uic
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QTableWidgetItem, QFileDialog, QMessageBox, QHeaderView, QCheckBox
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QTableWidgetItem, QFileDialog, QMessageBox, QHeaderView, QCheckBox, QTextEdit
 from decimal import *
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -32,6 +32,7 @@ import pickle
 import log
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz
 from astropy.time import Time
+import csv
 
 class Location:
     def __init__(self, name, long, lat_deg, tbz_gmt):
@@ -42,7 +43,7 @@ class Location:
         self.tbz_gmt = int(tbz_gmt)
 
 class Star:
-    def __init__(self, name, ra_h, dec_deg, E, P, mag, pmra=None, pmdec=None):
+    def __init__(self, name, ra_h, dec_deg, E, P, mag, pmra=None, pmdec=None, min_start=np.nan, min_end=None):
         for i in stars:
             if i.name == name:
                 raise IndexError("This Star Already Added:", name)
@@ -59,6 +60,7 @@ class Star:
         self.mag = float(mag)
         self.mintimes = []
         self.mintimes2 = []
+        self.minstart = min_start
      
     @staticmethod
     def get_proper_motion_from_simbad(object_name):
@@ -134,6 +136,37 @@ class Worker(QRunnable):
         except:
             pass
         
+class AboutDialog(QDialog):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle("About My App")
+        self.setGeometry(500, 300, 800, 300)
+
+        layout = QVBoxLayout()
+
+        about_text = """
+        ---------------------------------------------------------------------------------------------------------------------------------------------
+        Selecting a specific system for the observations of extrema in the light curves of variable stars poses a significant challenge, 
+        particularly in cases where observers are confronted with a multitude of systems but face time constraints. In response to this issue, 
+        we developed an application with Python to help the observer to determine the most viable system to be observed at any given time. 
+        This application also provides information on optimal dates for observing a particular system at a specified time interval. Additionally, 
+        the application enables users to create detailed logs documenting any observation of a particular target.
+        This is a free, open source program.
+        ---------------------------------------------------------------------------------------------------------------------------------------------
+        Verison: 1.0
+        Github Link: https: github.com/baris-guler/ObservaPy
+        Author: Barış Güler
+        My mail: barisguler2000@gmail.com
+        """
+
+        text_edit = QTextEdit()
+        text_edit.setPlainText(about_text)
+        text_edit.setReadOnly(True)  # Make the text uneditable
+        layout.addWidget(text_edit)
+
+        self.setLayout(layout)
+        
 def get_julian_datetime(date):
     # Ensure correct format
     if not isinstance(date, dt.datetime):
@@ -163,19 +196,7 @@ def load():
     df = pd.DataFrame()
     stars = []
     observatories = []
-    if star_file.endswith(".txt"):
-        star_data = open(star_file, "r")
-        for line in star_data:
-            a = line.split(";")
-            sname = a[0]
-            sra = a[1]
-            sdec = a[2]
-            sE = a[3]
-            sP = a[4]
-            smag = a[5]
-            stars.append(Star(sname, sra, sdec, sE, sP, smag))
-        star_data.close()
-    elif star_file.endswith(".csv"):
+    if star_file.endswith(".csv"):
         with open(star_file, "r") as file:
             first_line = file.readline()
             if "," in first_line:
@@ -189,7 +210,8 @@ def load():
             sE = row["Epoch"]
             sP = row["Period"]
             smag = row["Magnitude"]
-            stars.append(Star(sname, sra, sdec, sE, sP, smag))
+            mintime_start = row["Mintime_Start"]
+            stars.append(Star(sname, sra, sdec, sE, sP, smag, min_start=mintime_start))
     else:
         raise ValueError("Star file must be .txt or .csv")
             
@@ -259,7 +281,6 @@ def dataframe_refresh():
     global observer
     global df
     global columns_active
-    global met
     if "obs" in df.columns:
         df.drop("obs", axis=1, inplace=True)
     if "_mintime_start_h" in df.columns:
@@ -340,14 +361,21 @@ def dataframe_refresh():
             if time < twilight_end + timedelta(hours=5) and time > twilight_start - timedelta(hours=5):
                 star.mintimes2.append(time)
         
-        if mst != 0.5 and mst != 0:
+        
+        if mst != 0:
             for m in star.mintimes:
-                mintime_9 = m - timedelta((1-mst)*star.P)
+                if np.isnan(star.minstart):
+                    mintime_9 = m - timedelta(minutes=mst)
+                else:
+                    mintime_9 = m - timedelta(minutes=star.minstart)
                 if mintime_9 > start_date:
                     if h_calculator(mintime_9, star) > min_alt:
                         mintime = m
                         if h_calculator(mintime, star) > min_alt:
-                            mintime_11 = m + timedelta((met)*star.P)
+                            if np.isnan(star.minstart):
+                                mintime_11 = m + timedelta(minutes=mst)
+                            else:
+                                mintime_11 = m + timedelta(minutes=star.minstart)
                             if mintime_11 < twilight_end and h_calculator(mintime_11, star) > min_alt and mintime_9 > twilight_start:
                                 observable = True
                                 break
@@ -355,9 +383,15 @@ def dataframe_refresh():
             else:
                 for m in star.mintimes:
                     if mintime_9 > start_date:
-                        mintime_9 = m - timedelta((1-mst)*star.P)
+                        if np.isnan(star.minstart):
+                            mintime_9 = m - timedelta(minutes=mst)
+                        else:
+                            mintime_9 = m - timedelta(minutes=star.minstart)
                         mintime = m
-                        mintime_11 = m + timedelta((met)*star.P)
+                        if np.isnan(star.minstart):
+                            mintime_11 = m + timedelta(minutes=mst)
+                        else:
+                            mintime_11 = m + timedelta(minutes=star.minstart)
                         observable = False
                         break
                 else:
@@ -367,9 +401,9 @@ def dataframe_refresh():
                     observable = False
         else:
             for m in star.mintimes:
-                mintime_9 = m - timedelta((1-mst)*star.P)
+                mintime_9 = m - timedelta(minutes=mst)
                 mintime = m
-                mintime_11 = m + timedelta((1-mst)*star.P)
+                mintime_11 = m + timedelta(minutes=mst)
                 
             for t in times:
                 if h_calculator(t, star) > min_alt:
@@ -456,9 +490,11 @@ def add_star_dialog():
     text5 = QLineEdit("0.3443308426")
     label6 = QLabel('M')
     text6 = QLineEdit("13")
+    label8 = QLabel('Mintime - Mintime Start (minute)(optional)')
+    text8 = QLineEdit("")
     label7 = QLabel()
     add_button = QPushButton("add")
-    add_button.clicked.connect(lambda: new_star_add(text1.text(), text2.text(), text3.text(), text4.text(), text5.text(), text6.text(), label7))
+    add_button.clicked.connect(lambda: new_star_add(text1.text(), text2.text(), text3.text(), text4.text(), text5.text(), text6.text(), text8.text(), label7, dialog))
     back_button = QPushButton("back")
     back_button.clicked.connect(lambda: back(dialog))
     
@@ -474,6 +510,8 @@ def add_star_dialog():
     dialog_layout.addWidget(text5)
     dialog_layout.addWidget(label6)
     dialog_layout.addWidget(text6)
+    dialog_layout.addWidget(label8)
+    dialog_layout.addWidget(text8)
     dialog_layout.addWidget(label7)
     dialog_layout.addWidget(add_button)
     dialog_layout.addWidget(back_button)
@@ -524,26 +562,14 @@ def add_observatory_dialog(name="TUG", long="-32.779583400", lat="36.825",gmt="+
 def close_dialog(close_event):
     refresh()
 
-def new_star_add(name, ra, dec, E, P ,mag, label7, dialog):
-    if star_file.endswith(".txt"):
+def new_star_add(name, ra, dec, E, P ,mag, mintime_start, label7, dialog):
+    if star_file.endswith(".csv"):
         try:
             label7.setStyleSheet("color: green;")
             stars.append(Star(name, ra, dec, E, P, mag))
             label7.setText("Star Added")
             star_data = open(star_file, "a")
-            star_data.write(f"{name};{ra};{dec};{E};{P};{mag}\n")
-            star_data.close()
-            refresh()
-        except Exception as e:
-            label7.setStyleSheet("color: red;")
-            label7.setText(str(e))
-    elif star_file.endswith(".csv"):
-        try:
-            label7.setStyleSheet("color: green;")
-            stars.append(Star(name, ra, dec, E, P, mag))
-            label7.setText("Star Added")
-            star_data = open(star_file, "a")
-            star_data.write(f"{name},{ra},{dec},{E},{P},{mag}\n")
+            star_data.write(f"{name},{ra},{dec},{E},{P},{mag},{mintime_start}\n")
             star_data.close()
             refresh()
         except Exception as e:
@@ -615,12 +641,13 @@ def refresh():
     
     dataframe_refresh()
     nrows, ncols = df.shape
-    df = df.sort_values(by = ["obs", "_mintime_start_h"], ascending=[False, True])
-    dlg.star_table.setColumnCount(len(df.columns)-2)
-    dlg.star_table.setRowCount(len(df))
-    dlg.star_table.setHorizontalHeaderLabels(df.columns)
-    header = dlg.star_table.horizontalHeader()  
-    header.setSectionResizeMode(0, QHeaderView.Stretch)
+    if not df.empty:
+        df = df.sort_values(by = ["obs", "_mintime_start_h"], ascending=[False, True])
+        dlg.star_table.setColumnCount(len(df.columns)-2)
+        dlg.star_table.setRowCount(len(df))
+        dlg.star_table.setHorizontalHeaderLabels(df.columns)
+        header = dlg.star_table.horizontalHeader()  
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
     
     #column size
     max_len = []
@@ -658,14 +685,6 @@ def refresh():
         dlg.star_table.horizontalHeader().setSortIndicator(sorted_column_index, Qt.AscendingOrder)
     else:
         dlg.star_table.horizontalHeader().setSortIndicator(sorted_column_index, Qt.DescendingOrder)
-                
-
-def add_new(index):
-    selected_text = "Add Star"
-    if(selected_text == "Add Star"):
-        add_star_dialog()
-    elif (selected_text == "Add Observatory"):
-        add_observatory_dialog()
         
 def date_changed(value, datetype):
     global start_date
@@ -751,7 +770,6 @@ def time_h_plot(star_name):
     global min_alt
     global twilight_start
     global twilight_end
-    global met
     
     times = []
     
@@ -760,13 +778,6 @@ def time_h_plot(star_name):
     while t <= twilight_end + timedelta(hours=2):
         times.append(t)
         t += delta
-        
-    # delete old graph
-    while dlg.graph_layout.count():
-        item = dlg.graph_layout.itemAt(0)
-        widget = item.widget()
-        dlg.graph_layout.removeItem(item)
-        widget.setParent(None)
         
     # plotting star find in list
     for i in stars:
@@ -814,19 +825,18 @@ def time_h_plot(star_name):
     bx.xaxis.set_major_locator(mdates.AutoDateLocator())
     bx.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
     bx.tick_params(axis='x', labelsize=8)
-
-    canvas = FigureCanvas(fig)
-    dlg.graph_layout.addWidget(canvas)
-    parent_widget = QtWidgets.QWidget()  # Create a parent QWidget
-    toolbar = NavigationToolbar(canvas, parent_widget)  # Pass the parent QWidget as an argument
-    dlg.graph_layout.addWidget(toolbar)
     
     ax.set_ylim(0, 90)
     ax.set_xlim(twilight_start - timedelta(minutes=30), twilight_end + timedelta(minutes=30))
     
     for i in plotting_star.mintimes:
-        som = i - timedelta(hours=plotting_star.P*(1-mst)*24)
-        eom = i + timedelta(hours=plotting_star.P*(met)*24)
+        if ~np.isnan(plotting_star.minstart):
+            print(plotting_star.minstart)
+            som = i - timedelta(minutes=plotting_star.minstart)
+            eom = i + timedelta(minutes=plotting_star.minstart)
+        else:
+            som = i - timedelta(minutes=mst)
+            eom = i + timedelta(minutes=mst)
         x = som + np.arange(10) * (eom - som) / (10 - 1)
         y_min = -200
         y_max = 200
@@ -847,7 +857,24 @@ def time_h_plot(star_name):
         handles.append(mintime2_legend)
         handles.append(night_legend)
         plt.legend(handles=handles)
-        
+
+    if dlg.graph_layout.count() == 0:
+        canvas = FigureCanvas(fig)
+        dlg.graph_layout.addWidget(canvas)
+        toolbar = NavigationToolbar(canvas, dlg.graph_grid)
+        dlg.graph_layout.addWidget(toolbar)
+    else:
+        for i in reversed(range(dlg.graph_layout.count())):
+            widget = dlg.graph_layout.itemAt(i).widget()
+            if widget is not None:
+                widget.close()
+            dlg.graph_layout.takeAt(i)
+
+        canvas = FigureCanvas(fig)
+        dlg.graph_layout.addWidget(canvas)
+        toolbar = NavigationToolbar(canvas, dlg.graph_grid)
+        dlg.graph_layout.addWidget(toolbar)
+
     plt.close()
 
 def on_cell_clicked(row, column):
@@ -903,38 +930,19 @@ def observatory_selected(index):
     
 def msp_changed():
     global mst
-    global met
     text = dlg.min_start_period_input.text()
     try:
         msp = float(text)
-        if msp >= 1:
+        if msp >= 1000:
             raise ValueError("msp can't be more than 1")
-        elif msp < .5:
+        elif msp < 0:
             raise ValueError("msp can't be less than 0")
         else:
             mst = msp
-        dlg.min_end_period_input.setText(str(round((1-msp),2)))
-        met = float(dlg.min_end_period_input.text())
         settings_changed()
         refresh()
     except:
-        dlg.min_start_period_input .setText(".9")
-        
-def mep_changed():
-    global mst
-    global met
-    text = dlg.min_end_period_input.text()
-    try:
-        mep = float(text)
-        if mep > .5:
-            raise ValueError("mep can't be more than .5")
-        elif mep <= 0:
-            raise ValueError("mep can't be less than 0")
-        else:
-            met = mep
-        refresh()
-    except:
-        dlg.min_end_period_input .setText(".1")
+        dlg.min_start_period_input .setText("60")
 
 def min_alt_changed():
     global min_alt
@@ -1012,6 +1020,10 @@ def sector_query(star_name):
 def tess_analysis(object_name):
     dlg.async_label.setText(f"Downloading {object_name} lightcurve")
     folder_path = "lightcurves"
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    else:
+        pass
     file_name = f"{object_name}.txt"
     files = [name for name in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, name))]
     
@@ -1286,7 +1298,8 @@ def on_month_double_clicked(item):
     for row in range(dlg.star_table.rowCount()):
         item = dlg.star_table.item(row, 0) 
         if item.text() == star_for_month.name:
-            dlg.star_table.selectRow(row)
+            on_cell_clicked(row,0)
+    refresh()
     dlg.show()
     dlg.activateWindow()
     
@@ -1309,9 +1322,11 @@ def edit_star():
     text5 = QLineEdit(str(star_for_month.P))
     label6 = QLabel('M')
     text6 = QLineEdit(str(star_for_month.mag))
+    label8 = QLabel('Mintime - Mintime Start (minute)(optional)')
+    text8 = QLineEdit(str(star_for_month.minstart))
     label7 = QLabel()
     add_button = QPushButton("edit")
-    add_button.clicked.connect(lambda: star_edited(text1.text(), text2.text(), text3.text(), text4.text(), text5.text(), text6.text(), label7))
+    add_button.clicked.connect(lambda: star_edited(text1.text(), text2.text(), text3.text(), text4.text(), text5.text(), text6.text(), text8.text(), label7))
     back_button = QPushButton("back")
     back_button.clicked.connect(lambda: back(dialog))
     
@@ -1327,6 +1342,8 @@ def edit_star():
     dialog_layout.addWidget(text5)
     dialog_layout.addWidget(label6)
     dialog_layout.addWidget(text6)
+    dialog_layout.addWidget(label8)
+    dialog_layout.addWidget(text8)
     dialog_layout.addWidget(label7)
     dialog_layout.addWidget(add_button)
     dialog_layout.addWidget(back_button)
@@ -1334,12 +1351,9 @@ def edit_star():
     dialog.setLayout(dialog_layout)
     dialog.exec_()
     
-def star_edited(name, ra, dec, E, P ,mag, label7):
-    if star_file.endswith(".txt"):
-        global star_for_month
-        global stars
+def star_edited(name, ra, dec, E, P ,mag, minstart, label7):
+    if star_file.endswith(".csv"):
         try:
-
             label7.setStyleSheet("color: green;")
             old_name = star_for_month.name
             star_for_month.name = name
@@ -1348,6 +1362,7 @@ def star_edited(name, ra, dec, E, P ,mag, label7):
             star_for_month.E = float(E)
             star_for_month.P = float(P)
             star_for_month.mag = mag
+            star_for_month.minstart = minstart
             label7.setText("Star Edited")
             
             with open(star_file, 'r') as file:
@@ -1359,41 +1374,7 @@ def star_edited(name, ra, dec, E, P ,mag, label7):
             file.close()
             
             if target_line_number >= 1 and target_line_number <= len(lines):
-                lines[target_line_number] = f"{name};{ra};{dec};{E};{P};{mag};\n"
-
-                with open(star_file, 'w') as file:
-                    file.writelines(lines)
-            
-            stars = []
-            dlg.star_table.clearContents()
-            load()
-            add_moon()
-            refresh()
-        except Exception as e:
-            label7.setStyleSheet("color: red;")
-            label7.setText(str(e))
-    elif star_file.endswith(".csv"):
-        try:
-            label7.setStyleSheet("color: green;")
-            old_name = star_for_month.name
-            star_for_month.name = name
-            star_for_month.ra = star_for_month._hours_to_h(ra)
-            star_for_month.dec = star_for_month._deg_to_float(dec)
-            star_for_month.E = float(E)
-            star_for_month.P = float(P)
-            star_for_month.mag = mag
-            label7.setText("Star Edited")
-            
-            with open(star_file, 'r') as file:
-                lines = file.readlines()
-            for i, line in enumerate(lines):
-                if line[:len(old_name)] == old_name:
-                    target_line_number = i
-                    break
-            file.close()
-            
-            if target_line_number >= 1 and target_line_number <= len(lines):
-                lines[target_line_number] = f"{name};{ra};{dec};{E};{P};{mag}\n"
+                lines[target_line_number] = f"{name},{ra},{dec},{E},{P},{mag},{minstart}\n"
                 with open(star_file, 'w') as file:
                     file.writelines(lines)
             
@@ -1686,6 +1667,11 @@ def add_obs():
     add_observatory_dialog()
     open_obs()
     
+def about():
+    about_dialog = AboutDialog()
+    about_dialog.exec_()
+
+    
     
 if __name__ == "__main__":
     app = QtWidgets.QApplication([])
@@ -1705,21 +1691,19 @@ if __name__ == "__main__":
         else:
             observatory_file = loaded_settings['observatory_file']
         mst = float(loaded_settings['mst'])
-        met = round((1-mst),2)
         min_alt = float(loaded_settings['min_alt'])
         columns_active = list(loaded_settings['columns_active'])
     else:
         settings = {
         'star_file': 'star.csv',
         'observatory_file': 'obs.csv',
-        'mst': .9,
+        'mst': 60,
         'min_alt': 30,
         'columns_active': [False, False, True, True, True, True, True, True, True]
         }
         star_file = "star.csv"
         observatory_file = "obs.csv"
-        mst = .9
-        met = .1
+        mst = 60
         min_alt = 30
         columns_active = [False, False, True, True, True, True, True, True, True]
         with open('settings.dat', 'wb') as file:
@@ -1728,7 +1712,7 @@ if __name__ == "__main__":
     observatories = []
     stars = []
     obs_loc = None
-     #mintime start period
+    #mintime start period
     df = pandas.DataFrame()
     start_date = datetime.now()
     times = []
@@ -1742,6 +1726,11 @@ if __name__ == "__main__":
         os.remove("settings.dat")
         star_file = "star.csv"
         observatory_file = "obs.csv"
+        if not os.path.isfile(star_file):
+            with open(star_file, mode='w', newline='') as csv_file:
+                fieldnames = ['Star Name', 'ra(h)', 'dec(deg)', 'Epoch', 'Period', 'Magnitude', 'Mintime_Start']
+                writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+                writer.writeheader()
         load()
     #moon
     if(str(obs_loc.tbz_gmt)[0] != "-"):
@@ -1766,9 +1755,7 @@ if __name__ == "__main__":
         model.appendRow(item)
     dlg.observatory_select.setModel(model)
     dlg.min_start_period_input.setText(str(mst))
-    dlg.min_end_period_input.setText(str(met))
     dlg.min_start_period_input.editingFinished.connect(msp_changed)
-    dlg.min_end_period_input.editingFinished.connect(mep_changed)
     dlg.min_altitude.setText(str(min_alt))
     dlg.min_altitude.editingFinished.connect(min_alt_changed)
     dlg.observatory_select.setStyleSheet("QComboBox { text-align: center; }")
@@ -1791,6 +1778,7 @@ if __name__ == "__main__":
     dlg.lightcurve_box.stateChanged.connect(lightcurve_box_clicked)
     dlg.action_load_stars.triggered.connect(load_stars)
     dlg.action_load_observatories.triggered.connect(load_observatories)
+    dlg.action_about.triggered.connect(about)
     dlg.sorting_combobox.addItems(["Sorting: Default", "Sorting: Free"])
     dlg.sorting_combobox.setCurrentIndex(0)
     dlg.sorting_combobox.currentIndexChanged.connect(sorting_changed)
