@@ -161,3 +161,6 @@ cython_debug/
 settings.dat
 star.csv
 __pycache__/log.cpython-310.pyc
+log/LS DEL/2023-11-06/2023-11-06_log.json
+log/LS DEL/2023-11-06/2023-11-06_lc.png
+__pycache__/log.cpython-310.pyc

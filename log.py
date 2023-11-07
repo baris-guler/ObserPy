@@ -359,7 +359,9 @@ def save_log(star_name):
                 file_path = file_path_old + "_" + str(i)
                 os.mkdir(file_path)
             first_selected_row_text = file_path.split("/")[-1]
-                
+        else:
+            os.mkdir(file_path)
+            first_selected_row_text = file_path.split("/")[-1]    
     else:
         selected_items = log.log_table.selectedItems()
         first_selected_row_text = selected_items[0].tableWidget().item(selected_items[0].row(), 0).text()
