@@ -155,7 +155,7 @@ class AboutDialog(QDialog):
         This is a free, open source program.
         ---------------------------------------------------------------------------------------------------------------------------------------------
         Verison: 1.0
-        Github Link: https: github.com/baris-guler/ObservaPy
+        Github Link: https://github.com/baris-guler/ObserPy
         Author: Barış Güler
         My mail: barisguler2000@gmail.com
         """
@@ -395,9 +395,9 @@ def dataframe_refresh():
                         observable = False
                         break
                 else:
-                    mintime_9 = start_date
-                    mintime = start_date
-                    mintime_11 = start_date
+                    mintime_9 = start_date + timedelta(days=1)
+                    mintime = start_date + timedelta(days=1)
+                    mintime_11 = start_date + timedelta(days=1)
                     observable = False
         else:
             for m in star.mintimes:
@@ -787,6 +787,8 @@ def time_h_plot(star_name):
     else:
         ValueError("Couldn't find star")
         
+    fig = None
+    ax = None
     fig, ax = plt.subplots()
     hs = [h_calculator(time, plotting_star) for time in times]
     hs_moon = moon_h_calculator(times)
@@ -864,18 +866,24 @@ def time_h_plot(star_name):
         toolbar = NavigationToolbar(canvas, dlg.graph_grid)
         dlg.graph_layout.addWidget(toolbar)
     else:
-        for i in reversed(range(dlg.graph_layout.count())):
-            widget = dlg.graph_layout.itemAt(i).widget()
-            if widget is not None:
-                widget.close()
-            dlg.graph_layout.takeAt(i)
-
+        while dlg.graph_layout.count():
+            item = dlg.graph_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+                
         canvas = FigureCanvas(fig)
         dlg.graph_layout.addWidget(canvas)
         toolbar = NavigationToolbar(canvas, dlg.graph_grid)
         dlg.graph_layout.addWidget(toolbar)
 
     plt.close()
+    
+def print_all_widgets(widget, indent=0):
+    print("  " * indent + f"{widget.objectName()} ({widget.__class__.__name__})")
+
+    for child in widget.children():
+        print_all_widgets(child, indent + 1)
 
 def on_cell_clicked(row, column):
     global lightcurve
@@ -969,24 +977,25 @@ def deselect_button_clicked():
 
 def go_time(given_time):
     global start_date
+    global twilight_start
     if given_time == "now":
         start_date = datetime.now().replace(second=0)
         correct_date()
         refresh()
         return
     elif given_time == "tonight":
-        if datetime.now().hour < 8:
+        if datetime.now().hour < 12:
             desired_date = date.today() - timedelta(days=1)
         else:
             desired_date = date.today()
 
     elif given_time == "selected night":
-        if start_date.hour < 8:
+        if start_date.hour < 12:
             desired_date = start_date - timedelta(days=1)
         else:
             desired_date = start_date
             
-    desired_time = time(20, 0, 0)
+    desired_time = time(twilight_start.hour, 0, 0)
     start_date = datetime.combine(desired_date, desired_time)
     correct_date()
     refresh()
@@ -1677,6 +1686,7 @@ if __name__ == "__main__":
     app = QtWidgets.QApplication([])
     dlg = uic.loadUi("prog.ui")
     dlg.star_table.clearContents()
+    empty_date = date(1923, 10, 29)
     
     #gloabal variables
     if os.path.exists("settings.dat"):
