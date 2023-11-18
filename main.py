@@ -950,7 +950,7 @@ def msp_changed():
         settings_changed()
         refresh()
     except:
-        dlg.min_start_period_input .setText("60")
+        dlg.min_start_period_input .setText("40")
 
 def min_alt_changed():
     global min_alt
@@ -1707,13 +1707,13 @@ if __name__ == "__main__":
         settings = {
         'star_file': 'star.csv',
         'observatory_file': 'obs.csv',
-        'mst': 60,
+        'mst': 40,
         'min_alt': 30,
         'columns_active': [False, False, True, True, True, True, True, True, True]
         }
         star_file = "star.csv"
         observatory_file = "obs.csv"
-        mst = 60
+        mst = 40
         min_alt = 30
         columns_active = [False, False, True, True, True, True, True, True, True]
         with open('settings.dat', 'wb') as file:
@@ -1782,7 +1782,7 @@ if __name__ == "__main__":
     dlg.sdhour.valueChanged.connect(lambda value: date_changed(value, 3))
     dlg.sdmin.valueChanged.connect(lambda value: date_changed(value, 4))
     dlg.clear_button.clicked.connect(deselect_button_clicked)
-    legend = False
+    legend = True
     dlg.legend_box.stateChanged.connect(legend_box_clicked)
     lightcurve = False
     dlg.lightcurve_box.stateChanged.connect(lightcurve_box_clicked)
