@@ -117,6 +117,7 @@ class Star:
             hours_float = (int(deg) + int(arcmin)/60*sign + float(arcsec)/3600*sign)
             return hours_float + (start_date.year-2000)*self.pmra
         else:
+            self.dec_str = lat_deg
             return lat_deg + (start_date.year-2000)*self.pmra
         
 class WorkerSignals(QObject):
@@ -627,6 +628,10 @@ def refresh():
     global start_date
     global observer
     
+    moon_index = next((index for index, star in enumerate(stars) if star.name == "moon"), None)
+    if moon_index is not None:
+        stars.append(stars.pop(moon_index))
+    
     sorted_column_index = dlg.star_table.horizontalHeader().sortIndicatorSection()
     sort_order = dlg.star_table.horizontalHeader().sortIndicatorOrder()
     dlg.star_table.horizontalHeader().setSortIndicator(-1, Qt.AscendingOrder)
@@ -686,7 +691,7 @@ def refresh():
     else:
         dlg.star_table.horizontalHeader().setSortIndicator(sorted_column_index, Qt.DescendingOrder)
         
-def date_changed(value, datetype):
+def date_changed(datetype, value):
     global start_date
     global day_changed
     if day_changed == True:
@@ -702,7 +707,7 @@ def date_changed(value, datetype):
                     start_date = start_date.replace(day=value)
                 except:
                     correct_date()
-        if datetype==1:
+        elif datetype==1:
             if value - start_date.month == 1:
                 start_date += timedelta(days=30)
                 correct_date()
@@ -714,12 +719,15 @@ def date_changed(value, datetype):
                     start_date = start_date.replace(month=value)
                 except:
                     correct_date()
-        if datetype==2:
-            try:
-                start_date = start_date.replace(year=value)
-            except:
-                start_date.replace(year=value, day=start_date.day-1)
-        if datetype==3:
+        elif datetype==2:
+            if 1930 < value < 2050:
+                try:
+                    start_date = start_date.replace(year=value)
+                    correct_date()
+                except:
+                    start_date.replace(year=value, day=start_date.day-1)
+                    correct_date()
+        elif datetype==3:
             if value - start_date.hour == 1:
                 start_date += timedelta(hours=1)
                 correct_date()
@@ -731,7 +739,7 @@ def date_changed(value, datetype):
                     start_date = start_date.replace(hour=value)
                 except:
                     correct_date()
-        if datetype==4:
+        elif datetype==4:
             if value - start_date.minute == 1:
                 start_date += timedelta(minutes=1)
                 correct_date()
@@ -744,6 +752,12 @@ def date_changed(value, datetype):
                 except:
                     correct_date()
         refresh()
+        
+def year_changed_f():
+    if 1930 < int(dlg.sdy.text()) < 2050:
+        pass
+    else:
+        correct_date()
     
 def correct_date():
     global day_changed
@@ -1776,11 +1790,12 @@ if __name__ == "__main__":
     dlg.sdhour.setValue(start_date.hour)
     dlg.sdmin.setValue(start_date.minute)
     day_changed = True
-    dlg.sdd.valueChanged.connect(lambda value: date_changed(value, 0))
-    dlg.sdm.valueChanged.connect(lambda value: date_changed(value, 1))
-    dlg.sdy.valueChanged.connect(lambda value: date_changed(value, 2))
-    dlg.sdhour.valueChanged.connect(lambda value: date_changed(value, 3))
-    dlg.sdmin.valueChanged.connect(lambda value: date_changed(value, 4))
+    dlg.sdd.valueChanged.connect(lambda value: date_changed(0, value))
+    dlg.sdm.valueChanged.connect(lambda value: date_changed(1, value))
+    dlg.sdy.valueChanged.connect(lambda value: date_changed(2, value))
+    dlg.sdy.editingFinished.connect(year_changed_f)
+    dlg.sdhour.valueChanged.connect(lambda value: date_changed(3, value))
+    dlg.sdmin.valueChanged.connect(lambda value: date_changed(4, value))
     dlg.clear_button.clicked.connect(deselect_button_clicked)
     legend = True
     dlg.legend_box.stateChanged.connect(legend_box_clicked)
