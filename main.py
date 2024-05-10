@@ -197,6 +197,7 @@ def load():
     df = pd.DataFrame()
     stars = []
     observatories = []
+    error_star_list = []
     if star_file.endswith(".csv"):
         with open(star_file, "r") as file:
             first_line = file.readline()
@@ -210,9 +211,21 @@ def load():
             sdec = row["dec(deg)"]
             sE = row["Epoch"]
             sP = row["Period"]
+            if (isinstance(sE, float) and np.isnan(sE)) or (isinstance(sP, float) and np.isnan(sP)) or (isinstance(sra, float) and np.isnan(sra)) or (isinstance(sdec, float) and np.isnan(sdec)):                
+                error_star_list.append(sname)
+                continue
             smag = row["Magnitude"]
             mintime_start = row["Mintime_Start"]
             stars.append(Star(sname, sra, sdec, sE, sP, smag, min_start=mintime_start))
+        if len(error_star_list) > 0:
+            message_box = QMessageBox()
+            message_box.setIcon(QMessageBox.Critical)
+            message_box.setWindowTitle("warning")
+            message = "Theese stars doesn't added because of information errors : "
+            for i in error_star_list:
+                message += i + " "
+            message_box.setText(message)
+            message_box.exec_()
     else:
         raise ValueError("Star file must be .txt or .csv")
             
@@ -224,7 +237,8 @@ def load():
             olat = row["Latitude"]
             otbz_gmt = row["TBZ_GMT"]
             observatories.append(Location(oname, olong, olat, otbz_gmt))
-        obs_loc = observatories[0]
+        if obs_loc is None:
+            obs_loc = observatories[0]
     else:
         raise ValueError("Observatory file must be .txt or .csv")
 
@@ -469,7 +483,7 @@ def dataframe_refresh():
             if observable:
                 df.loc[star.name, "obs"] = True
             else:
-                df.loc[star.name, "obs"] = False
+                df.loc[star.name, "obs"] = False 
             df.loc[star.name, "_mintime_start_h"] = round((min_time_start.day - start_date.day + (min_time_start.hour - start_date.hour)/24 + (min_time_start.minute - start_date.minute)/24/60), 4)
           
     
@@ -847,7 +861,6 @@ def time_h_plot(star_name):
     
     for i in plotting_star.mintimes:
         if ~np.isnan(plotting_star.minstart):
-            print(plotting_star.minstart)
             som = i - timedelta(minutes=plotting_star.minstart)
             eom = i + timedelta(minutes=plotting_star.minstart)
         else:
@@ -892,12 +905,6 @@ def time_h_plot(star_name):
         dlg.graph_layout.addWidget(toolbar)
 
     plt.close()
-    
-def print_all_widgets(widget, indent=0):
-    print("  " * indent + f"{widget.objectName()} ({widget.__class__.__name__})")
-
-    for child in widget.children():
-        print_all_widgets(child, indent + 1)
 
 def on_cell_clicked(row, column):
     global lightcurve
