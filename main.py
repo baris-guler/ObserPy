@@ -38,7 +38,7 @@ class Location:
     def __init__(self, name, long, lat_deg, tbz_gmt):
         self.name = name
         self.long = long
-        self.long_h = float(long)/15
+        self.long_h = float(long)
         self.lat_deg = float(lat_deg)
         self.tbz_gmt = int(tbz_gmt)
 
@@ -268,7 +268,7 @@ def h_calculator(t, star):
     global M
     
     gst, jd = gst_jd_calculator(t)
-    LST = (gst - obs_loc.long_h)/24
+    LST = (gst - obs_loc.long_h/15)/24
     
     if math.copysign(1, LST - star.ra) == -1:
         HA = abs((LST-star.ra) - math.trunc(LST-star.ra))
@@ -316,7 +316,7 @@ def dataframe_refresh():
     else:
         fred.date = start_date.replace(hour=12)
 
-    fred.lon  = str(obs_loc.long_h*15*-1) 
+    fred.lon  = str(obs_loc.long_h*-1) 
     fred.lat  = str(obs_loc.lat_deg)      
 
     fred.elev = 20
@@ -479,11 +479,11 @@ def dataframe_refresh():
                 df.loc[star.name, "Moon Distance"] = int(str(star_skycoord.separation(moon_skycoord)).split("d")[0])
             elif "Moon Distance" in df.columns:
                 df.drop("Moon Distance", axis=1, inplace=True)
-            
+                
             if observable:
-                df.loc[star.name, "obs"] = True
+                df.loc[star.name, "obs"] = 1
             else:
-                df.loc[star.name, "obs"] = False 
+                df.loc[star.name, "obs"] = 0
             df.loc[star.name, "_mintime_start_h"] = round((min_time_start.day - start_date.day + (min_time_start.hour - start_date.hour)/24 + (min_time_start.minute - start_date.minute)/24/60), 4)
           
     
@@ -599,7 +599,7 @@ def new_obs_add(name, long, lat, tbz_gmt, label7, dialog):
             observatories.append(Location(name, long , lat, tbz_gmt))
             label7.setText("obs Added")
             obs_data = open(observatory_file, "a")
-            obs_data.write(f"{name},{long},{lat},{tbz_gmt}\n")
+            obs_data.write(f"{name},{long*15},{lat},{tbz_gmt}\n")
             obs_data.close()
             dlg.observatory_select.addItems([f"{len(observatories)-1}: {observatories[len(observatories)-1].name}"])
             refresh()
@@ -687,7 +687,7 @@ def refresh():
             if isinstance(cell_data, (int, float)):
                 item.setData(Qt.EditRole, float(cell_data))
             dlg.star_table.setItem(row, col, item)
-            if df.iloc[row]["obs"]:
+            if df.iloc[row]["obs"] == 1:
                 item.setBackground(QColor("light green"))
             else:
                 item.setBackground(QColor(255, 192, 192))
@@ -952,9 +952,12 @@ def plot_lightcurve(result):
 def observatory_selected(index):
     global obs_loc
     selected_text = dlg.observatory_select.currentIndex()
+    obs_window.obs_gmt.setText("+" + str(obs_loc.tbz_gmt))
     obs_loc = observatories[selected_text]
     if(str(obs_loc.tbz_gmt)[0] != "-"):
         dlg.gmt_text.setText(f"GMT: +{obs_loc.tbz_gmt}")
+    else:
+        dlg.gmt_text.setText(f"GMT: {obs_loc.tbz_gmt}")
     refresh()
     
 def msp_changed():
@@ -1170,7 +1173,7 @@ def month_refresh():
     else:
         fred.date = start_date.replace(hour=12)
 
-    fred.lon = str(obs_loc.long_h*15*-1) 
+    fred.lon = str(obs_loc.long_h*-1) 
     fred.lat = str(obs_loc.lat_deg)      
     fred.elev = 20
     fred.pressure= 0
