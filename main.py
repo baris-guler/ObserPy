@@ -1458,21 +1458,13 @@ def add_moon():
   
 def go_to_simbad():
     try:
-        chrome_options = Options()
-        chrome_options.add_argument('--headless') 
-
-        driver = webdriver.Chrome(options=chrome_options) 
-
-        driver.get('https://simbad.cds.unistra.fr/simbad/sim-fbasic')
-        search_input = driver.find_element(By.NAME, 'Ident')
-        search_input.send_keys(monthing_star)
-        search_form = driver.find_element(By.NAME, 'submit')
-        search_form.click()
-
-        current_url = driver.current_url
-        driver.quit()
-        
-        webbrowser.open_new_tab(current_url)
+        # '+' işaretini '%2B' ile değiştirme
+        star_name = monthing_star.replace("+", "%2B")
+        # Eğer yıldız adı iki kelimeden oluşuyorsa arasına '+' işareti ekleme
+        if " " in star_name:
+            star_name = star_name.replace(" ", "+")
+        base_url = f"https://simbad.cds.unistra.fr/simbad/sim-basic?Ident={star_name}&submit=SIMBAD+search"
+        webbrowser.open_new_tab(base_url)
     except:
         pass
     
