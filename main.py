@@ -43,7 +43,7 @@ class Location:
         self.tbz_gmt = int(tbz_gmt)
 
 class Star:
-    def __init__(self, name, ra_h, dec_deg, E, P, mag, pmra=None, pmdec=None, min_start=np.nan, min_end=None):
+    def __init__(self, name, ra_h, dec_deg, E, P, mag, pmra=None, pmdec=None, min_start=np.nan, reminder=np.nan):
         for i in stars:
             if i.name == name:
                 raise IndexError("This Star Already Added:", name)
@@ -61,6 +61,7 @@ class Star:
         self.mintimes = []
         self.mintimes2 = []
         self.minstart = min_start
+        self.reminder_time = reminder
      
     @staticmethod
     def get_proper_motion_from_simbad(object_name):
@@ -216,7 +217,8 @@ def load():
                 continue
             smag = row["Magnitude"]
             mintime_start = row["Mintime_Start"]
-            stars.append(Star(sname, sra, sdec, sE, sP, smag, min_start=mintime_start))
+            reminder = row["Reminder"]
+            stars.append(Star(sname, sra, sdec, sE, sP, smag, min_start=mintime_start, reminder=reminder))
         if len(error_star_list) > 0:
             message_box = QMessageBox()
             message_box.setIcon(QMessageBox.Critical)
@@ -479,7 +481,27 @@ def dataframe_refresh():
                 df.loc[star.name, "Moon Distance"] = int(str(star_skycoord.separation(moon_skycoord)).split("d")[0])
             elif "Moon Distance" in df.columns:
                 df.drop("Moon Distance", axis=1, inplace=True)
-                
+            folder_dates = []    
+            directory_path = f"log/{star.name}"
+            if os.path.exists(directory_path):
+                folders = [folder for folder in os.listdir(directory_path) if os.path.isdir(os.path.join(directory_path, folder))]
+                for folder in folders:                                    
+                    folder_date = datetime.strptime(folder, '%Y-%m-%d').date()
+                    folder_dates.append(folder_date)
+            if columns_active[9]:
+                if len(folder_dates) != 0:
+                    df.loc[star.name, "Last Log"] = f"{((current_time.date() - folder_dates[-1]).days)} days ago"
+                else:
+                    df.loc[star.name, "Last Log"] = "Never"
+            elif "Last Log" in df.columns:
+                df.drop("Last Log", axis=1, inplace=True)
+            if columns_active[10]:
+                if np.isnan(star.reminder_time) or len(folder_dates) == 0:
+                    df.loc[star.name, "Reminder"] = None
+                else:
+                    df.loc[star.name, "Reminder"] = f"{int(star.reminder_time - ((current_time.date() - folder_dates[-1]).days))} days left"
+            elif "Reminder" in df.columns:
+                df.drop("Reminder", axis=1, inplace=True)
             if observable:
                 df.loc[star.name, "obs"] = 1
             else:
@@ -958,6 +980,7 @@ def observatory_selected(index):
         dlg.gmt_text.setText(f"GMT: +{obs_loc.tbz_gmt}")
     else:
         dlg.gmt_text.setText(f"GMT: {obs_loc.tbz_gmt}")
+    settings_changed()
     refresh()
     
 def msp_changed():
@@ -1260,8 +1283,8 @@ def month_refresh():
             mintimes_hour2.append(find_closest_hour(i))
         
         for col in range(phase_df.shape[1]):
-            phase = phase_df.iloc[row][col]
-            alt = alt_df.iloc[row][col]
+            phase = phase_df.iat[row, col]
+            alt = alt_df.iat[row, col]
             item = QTableWidgetItem(f"{phase_df.iloc[row, col]:.4f}")
             month.month_table_widget.setItem(row, col, item)
             if float(alt) > month_min_alt:
@@ -1351,15 +1374,17 @@ def edit_star():
     text3 = QLineEdit(str(month.month_dec.text()))
     label4 = QLabel('E')
     text4 = QLineEdit(str(star_for_month.E))
-    label5 = QLabel('P')
+    label5 = QLabel('P (Days)')
     text5 = QLineEdit(str(star_for_month.P))
     label6 = QLabel('M')
     text6 = QLineEdit(str(star_for_month.mag))
     label8 = QLabel('Mintime - Mintime Start (minute)(optional)')
     text8 = QLineEdit(str(star_for_month.minstart))
+    label9 = QLabel('Reminder Time (days)(optional)')
+    text9 = QLineEdit(str(star_for_month.reminder_time))
     label7 = QLabel()
     add_button = QPushButton("edit")
-    add_button.clicked.connect(lambda: star_edited(text1.text(), text2.text(), text3.text(), text4.text(), text5.text(), text6.text(), text8.text(), label7))
+    add_button.clicked.connect(lambda: star_edited(text1.text(), text2.text(), text3.text(), text4.text(), text5.text(), text6.text(), text8.text(), text9.text(), label7))
     back_button = QPushButton("back")
     back_button.clicked.connect(lambda: back(dialog))
     
@@ -1377,6 +1402,8 @@ def edit_star():
     dialog_layout.addWidget(text6)
     dialog_layout.addWidget(label8)
     dialog_layout.addWidget(text8)
+    dialog_layout.addWidget(label9)
+    dialog_layout.addWidget(text9)
     dialog_layout.addWidget(label7)
     dialog_layout.addWidget(add_button)
     dialog_layout.addWidget(back_button)
@@ -1384,7 +1411,7 @@ def edit_star():
     dialog.setLayout(dialog_layout)
     dialog.exec_()
     
-def star_edited(name, ra, dec, E, P ,mag, minstart, label7):
+def star_edited(name, ra, dec, E, P ,mag, minstart, reminder, label7):
     if star_file.endswith(".csv"):
         try:
             label7.setStyleSheet("color: green;")
@@ -1396,6 +1423,7 @@ def star_edited(name, ra, dec, E, P ,mag, minstart, label7):
             star_for_month.P = float(P)
             star_for_month.mag = mag
             star_for_month.minstart = minstart
+            star_for_month.reminder_time = reminder
             label7.setText("Star Edited")
             
             with open(star_file, 'r') as file:
@@ -1407,7 +1435,7 @@ def star_edited(name, ra, dec, E, P ,mag, minstart, label7):
             file.close()
             
             if target_line_number >= 1 and target_line_number <= len(lines):
-                lines[target_line_number] = f"{name},{ra},{dec},{E},{P},{mag},{minstart}\n"
+                lines[target_line_number] = f"{name},{ra},{dec},{E},{P},{mag},{minstart}, {reminder}\n"
                 with open(star_file, 'w') as file:
                     file.writelines(lines)
             
@@ -1531,11 +1559,14 @@ def settings_changed():
     global columns_active
     if os.path.exists("settings.dat"):
         os.remove("settings.dat")
+    selected_text = dlg.observatory_select.currentIndex()
+    print(selected_text)
     settings = {
     'star_file': star_file,
     'observatory_file': observatory_file,
     'mst': mst,
     'min_alt': min_alt,
+    'selected_obs': selected_text,
     'columns_active':columns_active
     }
     with open('settings.dat', 'wb') as file:
@@ -1598,6 +1629,12 @@ def columns_clicked():
     moon_distance_checkbox = QCheckBox('Moon Distance', col_dialog)
     layout.addWidget(moon_distance_checkbox)
     checkboxes.append(moon_distance_checkbox)
+    last_log_checkbox = QCheckBox('Last Log', col_dialog)
+    layout.addWidget(last_log_checkbox)
+    checkboxes.append(last_log_checkbox)
+    reminder_checkbox = QCheckBox('Reminder', col_dialog)
+    layout.addWidget(reminder_checkbox)
+    checkboxes.append(reminder_checkbox)
     
     for i, checkbox in enumerate(checkboxes):
         checkbox.setChecked(columns_active[i])
@@ -1656,11 +1693,13 @@ def on_cell_clicked_obs(row, column):
     obs_window.obs_lon.setText(str(observatories[selected_row].long))
     obs_window.obs_lat.setText(str(observatories[selected_row].lat_deg))
     obs_window.obs_gmt.setText("+" + str(observatories[selected_row].tbz_gmt))
+    settings_changed()
     
 def select_obs():
     global obs_loc
     selected_row = obs_window.obs_table.currentRow()
     dlg.observatory_select.setCurrentIndex(selected_row)
+    settings_changed()
     
 def edit_obs():
     global obs_loc
@@ -1669,6 +1708,8 @@ def edit_obs():
     add_observatory_dialog(name=sel_obs.name, long=sel_obs.long_h, lat=sel_obs.lat_deg, gmt=sel_obs.tbz_gmt, edit=True)
     dlg.observatory_select.setItemText(selected_row, observatories[selected_row].name)
     open_obs()
+    settings_changed()
+
     
 def del_obs():
     global observatories
@@ -1718,6 +1759,7 @@ if __name__ == "__main__":
             observatory_file = loaded_settings['observatory_file']
         mst = float(loaded_settings['mst'])
         min_alt = float(loaded_settings['min_alt'])
+        selected_obs = loaded_settings['selected_obs']
         columns_active = list(loaded_settings['columns_active'])
     else:
         settings = {
@@ -1725,13 +1767,13 @@ if __name__ == "__main__":
         'observatory_file': 'obs.csv',
         'mst': 40,
         'min_alt': 30,
-        'columns_active': [False, False, True, True, True, True, True, True, True]
+        'columns_active': [False, False, True, True, True, True, True, True, True, False, False]
         }
         star_file = "star.csv"
         observatory_file = "obs.csv"
         mst = 40
         min_alt = 30
-        columns_active = [False, False, True, True, True, True, True, True, True]
+        columns_active = [False, False, True, True, True, True, True, True, True, False, False]
         with open('settings.dat', 'wb') as file:
             pickle.dump(settings, file)
             
@@ -1761,8 +1803,10 @@ if __name__ == "__main__":
     #moon
     if(str(obs_loc.tbz_gmt)[0] != "-"):
         dlg.gmt_text.setText(f"GMT: +{obs_loc.tbz_gmt}")
+        
     add_moon()
-
+    obs_loc = observatories[selected_obs]
+    
     #gui variables
     
     dlg.star_table.cellClicked.connect(on_cell_clicked)
@@ -1780,6 +1824,7 @@ if __name__ == "__main__":
         item.setTextAlignment(Qt.AlignCenter)  # Center-align the text
         model.appendRow(item)
     dlg.observatory_select.setModel(model)
+    dlg.observatory_select.setCurrentIndex(selected_obs)
     dlg.min_start_period_input.setText(str(mst))
     dlg.min_start_period_input.editingFinished.connect(msp_changed)
     dlg.min_altitude.setText(str(min_alt))
@@ -1848,6 +1893,7 @@ if __name__ == "__main__":
     obs_window.obs_add_button.clicked.connect(add_obs)
     obs_window.obs_back_button.clicked.connect(obs_window.close)
     cell_selected = False
+    observatory_selected(selected_obs)
     refresh()
     
     #magnitude finder
