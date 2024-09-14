@@ -1560,7 +1560,6 @@ def settings_changed():
     if os.path.exists("settings.dat"):
         os.remove("settings.dat")
     selected_text = dlg.observatory_select.currentIndex()
-    print(selected_text)
     settings = {
     'star_file': star_file,
     'observatory_file': observatory_file,
