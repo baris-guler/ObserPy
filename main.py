@@ -88,7 +88,7 @@ class Star:
             if (ra_h.find(":") != -1):
                 splitter = ":"
             else:
-                ra_h = re.sub('\s+', ' ', ra_h)
+                ra_h = re.sub(r'\s+', ' ', ra_h)
                 splitter = " "
             h, min, sec = ra_h.split(splitter)
             hours_float = (int(h) + int(min)/60 + float(sec)/3600)
@@ -108,7 +108,7 @@ class Star:
             if (lat_deg.find(":") != -1):
                 splitter = ":"
             else:
-                lat_deg = re.sub('\s+', ' ', lat_deg)
+                lat_deg = re.sub(r'\s+', ' ', lat_deg)
                 splitter = " "
             deg, arcmin, arcsec = lat_deg.split(splitter)
             if deg[0] == "-":
@@ -529,9 +529,11 @@ def add_star_dialog():
     text6 = QLineEdit("10.62")
     label8 = QLabel('Mintime - Mintime Start (minute)(optional)')
     text8 = QLineEdit("")
+    label9 = QLabel('Reminder Time (days)(optional)')
+    text9 = QLineEdit("")
     label7 = QLabel()
     add_button = QPushButton("add")
-    add_button.clicked.connect(lambda: new_star_add(text1.text(), text2.text(), text3.text(), text4.text(), text5.text(), text6.text(), text8.text(), label7, dialog))
+    add_button.clicked.connect(lambda: new_star_add(text1.text(), text2.text(), text3.text(), text4.text(), text5.text(), text6.text(), text8.text(), text9.text(), label7, dialog))
     back_button = QPushButton("back")
     back_button.clicked.connect(lambda: back(dialog))
     
@@ -549,7 +551,10 @@ def add_star_dialog():
     dialog_layout.addWidget(text6)
     dialog_layout.addWidget(label8)
     dialog_layout.addWidget(text8)
+    dialog_layout.addWidget(label9)
+    dialog_layout.addWidget(text9)
     dialog_layout.addWidget(label7)
+
     dialog_layout.addWidget(add_button)
     dialog_layout.addWidget(back_button)
 
@@ -599,14 +604,14 @@ def add_observatory_dialog(name="TUG", long="-32.779583400", lat="36.825",gmt="+
 def close_dialog(close_event):
     refresh()
 
-def new_star_add(name, ra, dec, E, P ,mag, mintime_start, label7, dialog):
+def new_star_add(name, ra, dec, E, P ,mag, mintime_start, reminder, label7, dialog):
     if star_file.endswith(".csv"):
         try:
             label7.setStyleSheet("color: green;")
             stars.append(Star(name, ra, dec, E, P, mag))
             label7.setText("Star Added")
             star_data = open(star_file, "a")
-            star_data.write(f"{name},{ra},{dec},{E},{P},{mag},{mintime_start}\n")
+            star_data.write(f"{name},{ra},{dec},{E},{P},{mag},{mintime_start},{reminder}\n")
             star_data.close()
             refresh()
         except Exception as e:
@@ -1766,12 +1771,14 @@ if __name__ == "__main__":
         'observatory_file': 'obs.csv',
         'mst': 40,
         'min_alt': 30,
-        'columns_active': [False, False, True, True, True, True, True, True, True, False, False]
+        'columns_active': [False, False, True, True, True, True, True, True, True, False, False],
+        'selected_obs': 0
         }
         star_file = "star.csv"
         observatory_file = "obs.csv"
         mst = 40
         min_alt = 30
+        selected_obs = 0
         columns_active = [False, False, True, True, True, True, True, True, True, False, False]
         with open('settings.dat', 'wb') as file:
             pickle.dump(settings, file)
