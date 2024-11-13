@@ -5,5 +5,5 @@
 ---------------------------------------------------------------------------------------------------------------------------------------------
 Verison: 1.0 <br>
 Github Link: https: github.com/baris-guler/ObservaPy <br>
-Author: Barış Güler <br>
+Authors: Barış Güler, Özgür Baştürk, Ekrem Murat Esmer, Furkan Akar, Ezgi Sertkan <br>
 My mail: barisguler2000@gmail.com <br>
