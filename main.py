@@ -159,7 +159,7 @@ class AboutDialog(QDialog):
         Verison: 1.0
         Github Link: https://github.com/baris-guler/ObserPy
         Author: Barış Güler
-        My mail: barisguler2000@gmail.com
+        My mail: gulerbaris2000@gmail.com
         """
 
         text_edit = QTextEdit()
